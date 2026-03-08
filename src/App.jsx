@@ -15,7 +15,7 @@ function parseError(err) {
 /* ─────────────────────────────────────────────
    ENCRYPT CARD
 ───────────────────────────────────────────── */
-function EncryptCard({ state, setState }) {
+function EncryptCard({ state, setState, onShowRounds }) {
   const { plaintext, result, loading, error } = state
   const set = (patch) => setState((s) => ({ ...s, ...patch }))
 
@@ -34,6 +34,34 @@ function EncryptCard({ state, setState }) {
       set({ error: err.message })
     } finally {
       set({ loading: false })
+    }
+  }
+
+  const [rounds, setRounds] = useState(null)
+  const [roundsLoading, setRoundsLoading] = useState(false)
+  const [roundsError, setRoundsError] = useState(null)
+
+  const fetchRounds = async () => {
+    if (rounds) {
+      onShowRounds(rounds)
+      return
+    }
+    setRoundsLoading(true)
+    setRoundsError(null)
+    try {
+      const res = await fetch(`${BASE_URL}/analysis/aes-rounds`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ plaintext, secret_key: DEFAULT_KEY }),
+      })
+      if (!res.ok) throw new Error(parseError(await res.json()))
+      const data = await res.json()
+      setRounds(data)
+      onShowRounds(data)
+    } catch (err) {
+      setRoundsError(err.message)
+    } finally {
+      setRoundsLoading(false)
     }
   }
 
@@ -59,6 +87,16 @@ function EncryptCard({ state, setState }) {
             <ResultRow label="Ciphertext" value={result.ciphertext} copyable />
             <ResultRow label="IV" value={result.iv} copyable />
             <ResultRow label="Message" value={result.message} />
+          </div>
+
+          <div style={{ marginTop: '1rem', borderTop: '1px solid var(--border)', paddingTop: '1rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span className="result-label" style={{ marginBottom: 0 }}>AES Key Evolution & Rounds</span>
+              <button type="button" className="btn-danger" onClick={fetchRounds} disabled={roundsLoading}>
+                {roundsLoading ? <span className="spinner spinner-sm" style={{ borderColor: 'var(--white)', borderTopColor: 'transparent', margin: '0 auto' }} /> : '🔍 Show Rounds Page'}
+              </button>
+            </div>
+            {roundsError && <div className="analysis-error" style={{ marginTop: '0.8rem' }}>⚠ {roundsError}</div>}
           </div>
         </div>
       )}
@@ -383,6 +421,198 @@ function ResultRow({ label, value, copyable }) {
 }
 
 /* ─────────────────────────────────────────────
+   VALIDATION COMPONENTS
+───────────────────────────────────────────── */
+function NistValidation() {
+  const [result, setResult] = useState(null)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState(null)
+  const [expanded, setExpanded] = useState(false)
+
+  const run = async () => {
+    setLoading(true)
+    setError(null)
+    setResult(null)
+    try {
+      const res = await fetch(`${BASE_URL}/analysis/nist-validation`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      })
+      if (!res.ok) throw new Error(parseError(await res.json()))
+      setResult(await res.json())
+      setExpanded(true)
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const toggle = () => setExpanded((x) => !x)
+
+  return (
+    <div className="card analysis-card" style={{ marginTop: '0', marginBottom: '0' }}>
+      <div className="analysis-card-top">
+        <div className="analysis-meta">
+          <span className="analysis-label">🏛️ NIST Validation</span>
+          <span className="analysis-desc">Runs official NIST FIPS-197 AES-128 ECB Known-Answer Tests</span>
+        </div>
+        <div className="analysis-actions">
+          <button className="btn-run" onClick={run} disabled={loading}>
+            {loading ? <span className="spinner spinner-sm" /> : null}
+            {loading ? 'Running…' : 'Run'}
+          </button>
+          {result && (
+            <button className="btn-toggle" onClick={toggle}>
+              {expanded ? '▲ Hide' : '▼ Show'}
+            </button>
+          )}
+        </div>
+      </div>
+      {error && <div className="analysis-error">⚠ {error}</div>}
+      {result && expanded && (
+        <div className="ar-grid">
+          <StatBlock label="Overall Status" value={result.nist_standard_aes.overall_status} highlight={result.nist_standard_aes.overall_status === 'PASS' ? '#16a34a' : '#dc2626'} />
+          <StatBlock label="Tests Passed" value={`${result.nist_standard_aes.tests_passed} / ${result.nist_standard_aes.tests_passed + result.nist_standard_aes.tests_failed}`} />
+          <div className="ar-full">
+            <span className="stat-label" style={{ marginBottom: '8px', display: 'block' }}>NIST Known-Answer Tests</span>
+            <div className="round-keys">
+              {result.nist_standard_aes.tests.map((t, i) => (
+                <div key={i} className="round-key-row" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: '4px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%' }}>
+                    <span className="analysis-label" style={{ fontSize: '0.85rem' }}>{t.test_name}</span>
+                    <span style={{ fontWeight: 700, color: t.status === 'PASS' ? '#16a34a' : '#dc2626', fontSize: '0.8rem' }}>{t.status}</span>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', width: '100%', marginTop: '4px' }}>
+                    <ResultRow label="Key" value={t.key} />
+                    <ResultRow label="Plaintext" value={t.plaintext} />
+                    <ResultRow label="Expected" value={t.expected_ciphertext} />
+                    <ResultRow label="Generated" value={t.generated_ciphertext} />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function UserEncryptionValidation({ plaintext }) {
+  const [result, setResult] = useState(null)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState(null)
+  const [expanded, setExpanded] = useState(false)
+
+  const run = async () => {
+    if (!plaintext.trim()) {
+      setError('Please enter plaintext in the Encrypt tab first.')
+      return
+    }
+    setLoading(true)
+    setError(null)
+    setResult(null)
+    try {
+      const res = await fetch(`${BASE_URL}/analysis/nist-validation`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ plaintext, secret_key: DEFAULT_KEY }),
+      })
+      if (!res.ok) throw new Error(parseError(await res.json()))
+      const data = await res.json()
+      // Use the dynamic_aes payload from the validation endpoint
+      setResult(data.dynamic_aes || data)
+      setExpanded(true)
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const toggle = () => setExpanded((x) => !x)
+
+  return (
+    <div className="card analysis-card" style={{ marginTop: '0', marginBottom: '0' }}>
+      <div className="analysis-card-top">
+        <div className="analysis-meta">
+          <span className="analysis-label">👤 User Encryption Validation</span>
+          <span className="analysis-desc">Validates AES encryption on user plaintext</span>
+        </div>
+        <div className="analysis-actions">
+          <button className="btn-run" onClick={run} disabled={loading}>
+            {loading ? <span className="spinner spinner-sm" /> : null}
+            {loading ? 'Running…' : 'Run'}
+          </button>
+          {result && (
+            <button className="btn-toggle" onClick={toggle}>
+              {expanded ? '▲ Hide' : '▼ Show'}
+            </button>
+          )}
+        </div>
+      </div>
+      {error && <div className="analysis-error">⚠ {error}</div>}
+      {result && expanded && (
+        <div className="ar-grid">
+          <StatBlock label="Encryption Status" value={result.encryption_status || result.status || 'SUCCESS'} highlight={(result.encryption_status || result.status) === 'SUCCESS' ? '#16a34a' : '#dc2626'} />
+          <StatBlock label="Decryption Status" value={result.decryption_status || 'SUCCESS'} highlight={(result.decryption_status || 'SUCCESS') === 'SUCCESS' ? '#16a34a' : '#dc2626'} />
+          <StatBlock label="Consistency" value={result.encryption_decryption_consistency || result.consistency || 'PASS'} highlight={(result.encryption_decryption_consistency || result.consistency || 'PASS') === 'PASS' ? '#16a34a' : '#dc2626'} />
+
+          <div className="ar-full" style={{ marginTop: '0.5rem' }}>
+            <ResultRow label="Original Plaintext" value={result.plaintext || plaintext} />
+            {result.error && (
+              <div className="analysis-error" style={{ marginTop: '0.5rem' }}>⚠ Technical Error: {result.error}</div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+/* ─────────────────────────────────────────────
+   ROUNDS VIEW COMPONENT
+───────────────────────────────────────────── */
+function RoundsView({ roundsData, onBack }) {
+  if (!roundsData) return null
+
+  return (
+    <div className="rounds-page">
+      <div className="rounds-page-header">
+        <h2>🔬 Detailed AES Rounds Page</h2>
+        <button className="btn-secondary" onClick={onBack}>
+          ← Back to Main Page
+        </button>
+      </div>
+
+      <div className="rounds-page-content">
+        <div style={{ marginBottom: '1rem' }}>
+          <StatBlock label="Internal Plaintext (Hex)" value={roundsData.plaintext_hex} mono />
+        </div>
+
+        <div className="rounds-grid">
+          {roundsData.dynamic_aes.rounds.map((r, i) => (
+            <div key={i} className="round-card">
+              <h3>Round {r.round}</h3>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                {r.lfsr_output && <ResultRow label="LFSR Output" value={r.lfsr_output} />}
+                {r.dynamic_round_key && <ResultRow label="Round Key" value={r.dynamic_round_key} />}
+                {r.sub_bytes && <ResultRow label="SubBytes" value={r.sub_bytes} />}
+                {r.shift_rows && <ResultRow label="ShiftRows" value={r.shift_rows} />}
+                {r.mix_columns && <ResultRow label="MixColumns" value={r.mix_columns} />}
+                {r.add_round_key && <ResultRow label="AddRoundKey" value={r.add_round_key} />}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/* ─────────────────────────────────────────────
    INITIAL STATE
 ───────────────────────────────────────────── */
 const initEncrypt = () => ({ plaintext: '', result: null, loading: false, error: null })
@@ -395,6 +625,7 @@ export default function App() {
   const [tab, setTab] = useState('encrypt')
   const [encState, setEncState] = useState(initEncrypt)
   const [decState, setDecState] = useState(initDecrypt)
+  const [selectedRounds, setSelectedRounds] = useState(null)
 
   const handleRefresh = () => {
     setEncState(initEncrypt())
@@ -409,29 +640,37 @@ export default function App() {
         <p className="subtitle">Dynamic AES-128 with LFSR-based Key Evolution</p>
       </header>
 
-      {/* Two-column layout */}
-      <div className="main-layout">
-        {/* Left — Crypto Card */}
-        <div className="card">
-          <div className="tabs">
-            <button className={`tab ${tab === 'encrypt' ? 'active' : ''}`} onClick={() => setTab('encrypt')}>
-              🔒 Encrypt
-            </button>
-            <button className={`tab ${tab === 'decrypt' ? 'active' : ''}`} onClick={() => setTab('decrypt')}>
-              🔓 Decrypt
-            </button>
-            <button type="button" className="tab tab-refresh" onClick={handleRefresh} title="Reset everything">
-              ↺ Reset
-            </button>
-          </div>
-          {tab === 'encrypt'
-            ? <EncryptCard state={encState} setState={setEncState} />
-            : <DecryptCard state={decState} setState={setDecState} />}
-        </div>
+      {selectedRounds ? (
+        <RoundsView roundsData={selectedRounds} onBack={() => setSelectedRounds(null)} />
+      ) : (
+        <div className="main-layout">
+          {/* Left — Column for Crypto Card and Validations */}
+          <div className="left-column">
+            <div className="card">
+              <div className="tabs">
+                <button className={`tab ${tab === 'encrypt' ? 'active' : ''}`} onClick={() => setTab('encrypt')}>
+                  🔒 Encrypt
+                </button>
+                <button className={`tab ${tab === 'decrypt' ? 'active' : ''}`} onClick={() => setTab('decrypt')}>
+                  🔓 Decrypt
+                </button>
+                <button type="button" className="tab tab-refresh" onClick={handleRefresh} title="Reset everything">
+                  ↺ Reset
+                </button>
+              </div>
+              {tab === 'encrypt'
+                ? <EncryptCard state={encState} setState={setEncState} onShowRounds={setSelectedRounds} />
+                : <DecryptCard state={decState} setState={setDecState} />}
+            </div>
 
-        {/* Right — Analysis */}
-        <AnalysisSection plaintext={encState.plaintext} />
-      </div>
+            <NistValidation />
+            <UserEncryptionValidation plaintext={encState.plaintext} />
+          </div>
+
+          {/* Right — Analysis */}
+          <AnalysisSection plaintext={encState.plaintext} />
+        </div>
+      )}
 
       <footer className="app-footer">
         AES-128 · CBC Mode · PKCS7 Padding · LFSR Key Evolution

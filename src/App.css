@@ -56,6 +56,13 @@ body {
   align-items: start;
 }
 
+/* ── Left Column ── */
+.left-column {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
    HEADER
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
@@ -262,6 +269,42 @@ body {
   border-color: var(--dark);
   color: var(--dark);
   background: var(--off-white);
+}
+
+.btn-danger {
+  padding: 0.65rem 1.25rem;
+  background: #dc2626;
+  color: var(--white);
+  border: none;
+  border-radius: var(--radius-sm);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.9rem;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  transition: background 0.2s, transform 0.15s, box-shadow 0.2s;
+  box-shadow: 0 2px 8px rgba(220, 38, 38, 0.25);
+  letter-spacing: 0.01em;
+}
+
+.btn-danger:hover:not(:disabled) {
+  background: #b91c1c;
+  transform: translateY(-1.5px);
+  box-shadow: 0 4px 12px rgba(220, 38, 38, 0.35);
+}
+
+.btn-danger:active {
+  transform: translateY(0);
+  box-shadow: none;
+}
+
+.btn-danger:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
 }
 
 /* ── Spinner ── */
@@ -744,6 +787,77 @@ body {
   white-space: pre-wrap;
   word-break: break-all;
   color: var(--dark);
+}
+
+/* ── Rounds Page ── */
+.rounds-page {
+  width: 100%;
+  max-width: 1200px;
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow);
+  padding: 2.5rem;
+  animation: fadeIn 0.3s ease;
+}
+
+.rounds-page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 2rem;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 1.5rem;
+}
+
+.rounds-page-header h2 {
+  font-family: 'Playfair Display', serif;
+  font-size: 2.2rem;
+  font-weight: 700;
+  color: var(--black);
+  letter-spacing: -0.5px;
+  margin: 0;
+}
+
+.rounds-page-content {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+
+.rounds-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+  gap: 1.5rem;
+}
+
+.round-card {
+  background: var(--off-white);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.5rem;
+}
+
+.round-card h3 {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--black);
+  margin-bottom: 1rem;
+  border-bottom: 2px solid var(--border2);
+  display: inline-block;
+  padding-bottom: 0.25rem;
+}
+
+.round-card .result-row {
+  border: none;
+  padding: 0.4rem 0;
+  background: transparent;
+  border-bottom: 1px solid var(--border);
+  border-radius: 0;
+}
+
+.round-card .result-row:last-child {
+  border-bottom: none;
 }
 
 /* ── Responsive ── */
