@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import './App.css'
+import AESRoundDashboard from './AESRoundDashboard'
 
 const BASE_URL = 'http://127.0.0.1:8000'
 const DEFAULT_KEY = '00112233445566778899aabbccddeeff'
@@ -49,7 +50,7 @@ function EncryptCard({ state, setState, onShowRounds }) {
     setRoundsLoading(true)
     setRoundsError(null)
     try {
-      const res = await fetch(`${BASE_URL}/analysis/aes-rounds`, {
+      const res = await fetch(`${BASE_URL}/analysis/aes-round-trace`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ plaintext, secret_key: DEFAULT_KEY }),
@@ -573,44 +574,8 @@ function UserEncryptionValidation({ plaintext }) {
 }
 
 /* ─────────────────────────────────────────────
-   ROUNDS VIEW COMPONENT
+   REMOVED OLD ROUNDS VIEW 
 ───────────────────────────────────────────── */
-function RoundsView({ roundsData, onBack }) {
-  if (!roundsData) return null
-
-  return (
-    <div className="rounds-page">
-      <div className="rounds-page-header">
-        <h2>🔬 Detailed AES Rounds Page</h2>
-        <button className="btn-secondary" onClick={onBack}>
-          ← Back to Main Page
-        </button>
-      </div>
-
-      <div className="rounds-page-content">
-        <div style={{ marginBottom: '1rem' }}>
-          <StatBlock label="Internal Plaintext (Hex)" value={roundsData.plaintext_hex} mono />
-        </div>
-
-        <div className="rounds-grid">
-          {roundsData.dynamic_aes.rounds.map((r, i) => (
-            <div key={i} className="round-card">
-              <h3>Round {r.round}</h3>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                {r.lfsr_output && <ResultRow label="LFSR Output" value={r.lfsr_output} />}
-                {r.dynamic_round_key && <ResultRow label="Round Key" value={r.dynamic_round_key} />}
-                {r.sub_bytes && <ResultRow label="SubBytes" value={r.sub_bytes} />}
-                {r.shift_rows && <ResultRow label="ShiftRows" value={r.shift_rows} />}
-                {r.mix_columns && <ResultRow label="MixColumns" value={r.mix_columns} />}
-                {r.add_round_key && <ResultRow label="AddRoundKey" value={r.add_round_key} />}
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  )
-}
 
 /* ─────────────────────────────────────────────
    INITIAL STATE
@@ -632,6 +597,10 @@ export default function App() {
     setDecState(initDecrypt())
   }
 
+  if (selectedRounds) {
+    return <AESRoundDashboard data={selectedRounds} onBack={() => setSelectedRounds(null)} />
+  }
+
   return (
     <div className="page">
       <header className="app-header">
@@ -640,37 +609,33 @@ export default function App() {
         <p className="subtitle">Dynamic AES-128 with LFSR-based Key Evolution</p>
       </header>
 
-      {selectedRounds ? (
-        <RoundsView roundsData={selectedRounds} onBack={() => setSelectedRounds(null)} />
-      ) : (
-        <div className="main-layout">
-          {/* Left — Column for Crypto Card and Validations */}
-          <div className="left-column">
-            <div className="card">
-              <div className="tabs">
-                <button className={`tab ${tab === 'encrypt' ? 'active' : ''}`} onClick={() => setTab('encrypt')}>
-                  🔒 Encrypt
-                </button>
-                <button className={`tab ${tab === 'decrypt' ? 'active' : ''}`} onClick={() => setTab('decrypt')}>
-                  🔓 Decrypt
-                </button>
-                <button type="button" className="tab tab-refresh" onClick={handleRefresh} title="Reset everything">
-                  ↺ Reset
-                </button>
-              </div>
-              {tab === 'encrypt'
-                ? <EncryptCard state={encState} setState={setEncState} onShowRounds={setSelectedRounds} />
-                : <DecryptCard state={decState} setState={setDecState} />}
+      <div className="main-layout">
+        {/* Left — Column for Crypto Card and Validations */}
+        <div className="left-column">
+          <div className="card">
+            <div className="tabs">
+              <button className={`tab ${tab === 'encrypt' ? 'active' : ''}`} onClick={() => setTab('encrypt')}>
+                🔒 Encrypt
+              </button>
+              <button className={`tab ${tab === 'decrypt' ? 'active' : ''}`} onClick={() => setTab('decrypt')}>
+                🔓 Decrypt
+              </button>
+              <button type="button" className="tab tab-refresh" onClick={handleRefresh} title="Reset everything">
+                ↺ Reset
+              </button>
             </div>
-
-            <NistValidation />
-            <UserEncryptionValidation plaintext={encState.plaintext} />
+            {tab === 'encrypt'
+              ? <EncryptCard state={encState} setState={setEncState} onShowRounds={setSelectedRounds} />
+              : <DecryptCard state={decState} setState={setDecState} />}
           </div>
 
-          {/* Right — Analysis */}
-          <AnalysisSection plaintext={encState.plaintext} />
+          <NistValidation />
+          <UserEncryptionValidation plaintext={encState.plaintext} />
         </div>
-      )}
+
+        {/* Right — Analysis */}
+        <AnalysisSection plaintext={encState.plaintext} />
+      </div>
 
       <footer className="app-footer">
         AES-128 · CBC Mode · PKCS7 Padding · LFSR Key Evolution
